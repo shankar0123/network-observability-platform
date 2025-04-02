@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s # How frequently to scrape targets by default.
+  evaluation_interval: 15s # How frequently to evaluate rules.
+
+# Alerting specifies runtime configuration for Alertmanager.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+           - alertmanager:9093 # Target Alertmanager instance
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+# rule_files:
+#   - "alert.rules.yml" # We'll add this later
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'kafka-consumer'
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+    static_configs:
+      - targets: ['kafka-consumer:8000'] # Service name and port defined in docker-compose

@@ -1,0 +1,127 @@
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+  # Kafka data volumes (optional, for persistence across restarts)
+  # kafka_data: {}
+  # zookeeper_data: {}
+  # zookeeper_log: {}
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2 # Using Confluent platform images
+    container_name: zookeeper
+    networks:
+      - monitoring
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    # volumes: # Optional persistence
+    #   - zookeeper_data:/var/lib/zookeeper/data
+    #   - zookeeper_log:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    container_name: kafka
+    networks:
+      - monitoring
+    depends_on:
+      - zookeeper
+    ports:
+      # Expose Kafka broker port to the host for potential external access if needed
+      # Use 9092 for internal communication within docker network
+      - "9093:9093" # Port for host access if needed (different from internal)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      # Use kafka:9092 for internal communication within the Docker network
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 # Required for newer Kafka versions
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 # Required for newer Kafka versions
+      # Auto-create topics (useful for development)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    # volumes: # Optional persistence
+    #   - kafka_data:/var/lib/kafka/data
+
+  kafka-consumer:
+    build:
+      context: ../kafka-consumer # Path relative to docker-compose.yml
+      dockerfile: Dockerfile
+    container_name: kafka-consumer
+    networks:
+      - monitoring
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: 'kafka:9092' # Use internal service name
+      KAFKA_TOPIC: 'canary-results'
+      PROMETHEUS_PORT: '8000'
+      PYTHONUNBUFFERED: 1 # Ensure logs appear immediately
+    ports:
+      - "8000:8000" # Expose Prometheus metrics port to host
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    networks:
+      - monitoring
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus # Persistent storage for metrics
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle' # Allows reloading config via API
+    ports:
+      - "9090:9090" # Expose Prometheus UI
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: alertmanager
+    networks:
+      - monitoring
+    ports:
+      - "9094:9093" # Expose Alertmanager UI (use different host port)
+    # volumes: # Optional: Mount config file if needed later
+    #   - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml' # Default path inside container
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
+    # depends_on: # Not strictly needed for startup order, but good practice
+    #   - prometheus
+
+  grafana:
+    image: grafana/grafana-oss:9.5.3
+    container_name: grafana
+    networks:
+      - monitoring
+    ports:
+      - "3001:3000" # Expose Grafana UI on host port 3001
+    volumes:
+      - grafana_data:/var/lib/grafana # Persistent storage for dashboards, etc.
+      # Optional: Mount provisioning files for datasources/dashboards
+      # - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      # Default login: admin/admin (change GF_SECURITY_ADMIN_PASSWORD for production)
+      # GF_SECURITY_ADMIN_PASSWORD: 'your_secure_password'
+      GF_AUTH_ANONYMOUS_ENABLED: "false" # Disable anonymous access
+      # Optional: Configure Prometheus datasource automatically
+      # GF_DATASOURCES_0_NAME: Prometheus
+      # GF_DATASOURCES_0_TYPE: prometheus
+      # GF_DATASOURCES_0_URL: http://prometheus:9090
+      # GF_DATASOURCES_0_ACCESS: proxy
+      # GF_DATASOURCES_0_IS_DEFAULT: true
+    restart: unless-stopped
+    depends_on:
+      - prometheus
