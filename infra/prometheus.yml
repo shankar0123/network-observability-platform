@@ -21,3 +21,7 @@ scrape_configs:
     # scheme defaults to 'http'.
     static_configs:
       - targets: ['kafka-consumer:8000'] # Service name and port defined in docker-compose
+
+  - job_name: 'bgp-analyzer'
+    static_configs:
+      - targets: ['bgp-analyzer:8001'] # Service name and port defined in docker-compose

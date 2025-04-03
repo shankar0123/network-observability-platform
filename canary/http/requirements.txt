@@ -1,0 +1,3 @@
+requests
+kafka-python
+python-dotenv

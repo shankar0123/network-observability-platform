@@ -125,3 +125,21 @@ services:
     restart: unless-stopped
     depends_on:
       - prometheus
+
+  bgp-analyzer:
+    build:
+      context: ../bgp-analyzer
+      dockerfile: Dockerfile
+    container_name: bgp-analyzer
+    networks:
+      - monitoring
+    ports:
+      - "8001:8001" # Expose Prometheus metrics port
+    environment:
+      # Optional: Override defaults here if needed
+      # PREFIXES_TO_MONITOR: "192.0.2.0/24,203.0.113.0/24"
+      # BGPSTREAM_PROJECTS: "routeviews"
+      PROMETHEUS_PORT: "8001"
+      LOG_LEVEL: "INFO"
+      PYTHONUNBUFFERED: 1
+    restart: unless-stopped

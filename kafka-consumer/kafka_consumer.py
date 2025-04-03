@@ -43,6 +43,34 @@ PING_PACKET_LOSS_PERCENT = Gauge(
     LABELS # Uses the standard labels
 )
 
+# Gauge specifically for DNS resolve time (can be redundant with CANARY_LATENCY_MS but allows specific queries)
+DNS_RESOLVE_TIME_MS = Gauge(
+    'dns_resolve_time_ms',
+    'DNS resolve time in milliseconds',
+    LABELS + ['query_type', 'resolver'] # Add DNS specific labels
+)
+
+# --- HTTP Specific Metrics ---
+HTTP_STATUS_CODE = Gauge(
+    'http_status_code',
+    'HTTP status code received from target',
+    LABELS
+)
+
+HTTP_RESPONSE_SIZE_BYTES = Gauge(
+    'http_response_size_bytes',
+    'Size of the HTTP response body in bytes',
+    LABELS
+)
+
+# Using a gauge for content match: 1=match, 0=mismatch, -1=not checked
+HTTP_CONTENT_MATCH_STATUS = Gauge(
+    'http_content_match_status',
+    'Status of expected string match in HTTP response body (1=match, 0=mismatch, -1=not checked)',
+    LABELS
+)
+
+
 # Optional: Histogram for latency distribution (more complex but powerful)
 # CANARY_LATENCY_HISTOGRAM = Histogram(
 #     'canary_latency_histogram_ms',
@@ -129,12 +157,60 @@ def process_message(message):
                 except (ValueError, TypeError):
                     logging.warning(f"Invalid packet_loss_percent value '{loss}' in message: {data}")
 
-        # TODO: Add processing for other canary types (http, dns, traceroute) here
-        # elif canary_type == 'http':
-        #     status_code = data.get('status_code')
-        #     # Define and update HTTP specific metrics...
-        # elif canary_type == 'dns':
-        #     # Define and update DNS specific metrics...
+        # --- DNS Specific Processing ---
+        elif canary_type == 'dns':
+            query_type = data.get('query_type', 'unknown')
+            resolver = data.get('resolver', 'unknown')
+            latency = data.get('latency_ms') # DNS uses 'latency_ms'
+
+            # Update DNS specific gauge (if latency exists and valid status)
+            if latency is not None and status in ['SUCCESS', 'FAILURE']: # Include FAILURE as query might resolve but return NXDOMAIN/NoAnswer
+                 try:
+                    latency_float = float(latency)
+                    DNS_RESOLVE_TIME_MS.labels(
+                        canary_id=canary_id,
+                        target=target,
+                        type=canary_type,
+                        query_type=query_type,
+                        resolver=resolver
+                    ).set(latency_float)
+                 except (ValueError, TypeError):
+                    logging.warning(f"Invalid DNS latency value '{latency}' in message: {data}")
+            # Note: General CANARY_LATENCY_MS is already updated above if latency is present
+
+        # --- HTTP Specific Processing ---
+        elif canary_type == 'http':
+            status_code = data.get('status_code')
+            response_size = data.get('response_size_bytes')
+            content_match = data.get('content_match') # True, False, or None
+
+            if status_code is not None:
+                try:
+                    HTTP_STATUS_CODE.labels(
+                        canary_id=canary_id, target=target, type=canary_type
+                    ).set(int(status_code))
+                except (ValueError, TypeError):
+                    logging.warning(f"Invalid status_code value '{status_code}' in message: {data}")
+
+            if response_size is not None:
+                 try:
+                    HTTP_RESPONSE_SIZE_BYTES.labels(
+                        canary_id=canary_id, target=target, type=canary_type
+                    ).set(int(response_size))
+                 except (ValueError, TypeError):
+                    logging.warning(f"Invalid response_size_bytes value '{response_size}' in message: {data}")
+
+            # Set content match status gauge
+            match_value = -1 # Default to -1 (not checked)
+            if content_match is True:
+                match_value = 1
+            elif content_match is False:
+                match_value = 0
+            HTTP_CONTENT_MATCH_STATUS.labels(
+                canary_id=canary_id, target=target, type=canary_type
+            ).set(match_value)
+
+        # TODO: Add processing for traceroute canary type here
 
     except json.JSONDecodeError:
         logging.error(f"Failed to decode JSON message: {message.value}")

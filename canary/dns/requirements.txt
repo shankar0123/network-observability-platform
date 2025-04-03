@@ -1,0 +1,3 @@
+dnspython
+kafka-python
+python-dotenv
