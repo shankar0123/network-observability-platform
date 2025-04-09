@@ -118,7 +118,7 @@ This setup allows you to run the entire backend infrastructure (Kafka, Prometheu
 ### Setup Steps
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repository-url> # Replace with the actual URL
+    git clone https://github.com/shankar0123/network-observability-platform.git
     cd network-observability-platform
     ```
 2.  **Navigate to Infrastructure Directory:**
