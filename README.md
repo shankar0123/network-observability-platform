@@ -235,3 +235,7 @@ Run the script directly on your host. Remember to set `KAFKA_BROKER` to the host
 *   **Prometheus Target `kafka-consumer` or `bgp-analyzer` is DOWN:** Check container logs (`docker-compose logs <service_name>`). Verify Docker networking. Ensure Prometheus scrape config matches the service name and port.
 *   **No data in Grafana/Prometheus:** Is a canary running? Is the consumer processing messages (check logs)? Is the BGP analyzer running and receiving data (check logs)? Is Prometheus scraping targets successfully? Are PromQL queries correct? Is the Grafana time range correct?
 *   **BGP Analyzer Issues:** `pybgpstream` can be sensitive to network conditions or collector availability. Check its logs for connection errors. Ensure monitored prefixes are valid.
+
+## 🪪 License
+
+This project is licensed under the [MIT License](LICENSE).
