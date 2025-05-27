@@ -1,2 +1,4 @@
-kafka-python
+prometheus_client
 python-dotenv
+pythonping
+influxdb-client

@@ -1,0 +1,3 @@
+influxdb-client
+python-dotenv
+kafka-python # If Kafka integration is planned
